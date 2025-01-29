@@ -11,7 +11,8 @@ def get_transactions_from_address(address):
     """
     Fetch all transactions for a given Bitcoin address using mempool.space API.
     """
-    url = f"https://mempool.space/api/address/{address}/txs"
+    # Public mempool: https://mempool.space/api/address/{address}/txs
+    url = f"https://mempool.unstoppableworld.org/api/address/{address}/txs"
     try:
         response = requests.get(url)
         response.raise_for_status()  # Raise an error for bad status codes
