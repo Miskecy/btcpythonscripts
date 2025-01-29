@@ -106,13 +106,13 @@ def run_program(start, end):
     command = [
         "sudo", "unshare", "--net",
         "./cuBitCrack",
-        "-t", "256",
-        "-b", "128",
-        "-p", "64",
-        "-c",
-        "-i", "in.txt",
-        "-o", "out.txt",
-        "--keyspace", keyspace
+        "-t", "256",					# Increased threads per block
+        "-b", "128",					# Adjusted blocks based on GPU compute units
+        "-p", "64", 					# Increased keys per thread
+        "-c",							# Search for compressed keys
+        "-i", "in.txt", 				# Path for input file
+        "-o", "out.txt",				# Path for output file
+        "--keyspace", keyspace, 		# Keyspace to be cracked
     ]
     try:
         logger("Info", f"Running with keyspace {keyspace}")
@@ -185,7 +185,8 @@ def process_out_file(out_file="out.txt", in_file="in.txt", additional_address=AD
                     
                     # Makeshift for BitCrack Bug
                     if len(current_address) < 34:
-                        current_address = "1" + current_address  # Add '1' as prefix if length is less than 34
+                        # Prefix with '1' until the length is 34
+                        current_address = current_address.rjust(34, '1')
 
                     private_key = parts[1].strip()  # The third string (private key)                                     
                     
@@ -215,8 +216,8 @@ def process_out_file(out_file="out.txt", in_file="in.txt", additional_address=AD
             if addr in private_keys:
                 ordered_private_keys.append(private_keys[addr])
             else:
-                # Makeshift for BitCrack Bug
-                modified_addr = "1" + addr if len(addr) < 34 else addr
+                # Makeshift for BitCrack Bug: Create a modified address if length is less than 34
+                modified_addr = addr.rjust(34, '1') if len(addr) < 34 else addr
                 if modified_addr in private_keys:
                     ordered_private_keys.append(private_keys[modified_addr])
                 else:
@@ -266,4 +267,4 @@ if __name__ == "__main__":
             logger("Error", "Error fetching block data.")
 
         # Wait 2 seconds before restarting the loop
-        time.sleep(1)
+        #time.sleep(1)
