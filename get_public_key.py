@@ -1,33 +1,66 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""
+Created on Tue Jan 28 19:12:18 2025
+
+@author: ChangeMe
+"""
 
 import requests
-import time
-from typing import Optional, List, Dict, Any
 
+def get_transactions_from_address(address):
+    """
+    Fetch all transactions for a given Bitcoin address using mempool.space API.
+    """
+    url = f"https://mempool.space/api/address/{address}/txs"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an error for bad status codes
+        return response.json()  # Return the list of transactions
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching transactions: {e}")
+        return None
 
-BASE_URL = "https://mempool.space/api"
+def extract_public_key_from_transaction(transaction):
+    """
+    Attempt to extract the public key from a transaction's input script.
+    """
+    for input_tx in transaction.get("vin", []):
+        if "scriptsig" in input_tx:
+            scriptsig = input_tx["scriptsig"]
+            # The public key might be embedded in the scriptSig (for P2PKH transactions)
+            # This is a simplified example and may not work for all cases
+            if "21" in scriptsig:  # Check for a compressed public key (33 bytes, 0x21 prefix)
+                pubkey_start = scriptsig.find("21") + 2
+                pubkey_hex = scriptsig[pubkey_start:pubkey_start + 66]  # 33 bytes in hex
+                return pubkey_hex
+    return None
 
+def get_public_key_from_address(address):
+    """
+    Fetch transactions for the address and attempt to extract the public key.
+    """
+    transactions = get_transactions_from_address(address)
+    if not transactions:
+        print("No transactions found for this address.")
+        return None
 
-def get_scriptpubkey(wallet: str) -> str:
-    while True:
-        try:
-            url = f'https://blockchain.info/q/pubkeyaddr/{wallet}'
-            response = requests.get(url)
-            if response.status_code == 200:
-                chave = response.text
-                return chave 
-                   
-            print('Não encontrada, tentando novamente em 5 segundos...')
-            time.sleep(5)
+    # Iterate through transactions to find the public key
+    for tx in transactions:
+        public_key = extract_public_key_from_transaction(tx)
+        if public_key:
+            return public_key
 
-        except:
-            time.sleep(5)
+    print("Public key not found in any transaction.")
+    return None
 
 if __name__ == "__main__":
-    print("Exemplo de Endereço: bc1qlqlch88awgah90y8890rtaqdf867las9kk9q2h")
+    # Get the address from user input
+    address = input("Enter the Bitcoin address: ")
 
-    wallet: str = input("\nInforme o endereço da carteira: ")
+    # Fetch the public key
+    public_key = get_public_key_from_address(address)
 
-    scriptpubkey: str = get_scriptpubkey(wallet)
-    print(f"\n{scriptpubkey}")
+    if public_key:
+        print(f"Public Key: {public_key}")
+    else:
+        print("Could not retrieve the public key.")
