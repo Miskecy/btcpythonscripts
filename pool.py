@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 from colorama import Fore, Style, init
 
-API_URL = "https://bitcoinflix.replit.app/api/block"
+API_URL = "https://bitcoinpuzzles.io/api/block"
 POOL_TOKEN = "9ea47c6b018df523c8a2b7e94f03da16c75049e8f3ba2d61b79c5e0438a27fd0"
 ADDITIONAL_ADDRESS = "1BY8GQbnueYofwSuFAT3USAhGjPrkxDdW9"
 
@@ -201,6 +201,14 @@ def process_out_file(out_file="out.txt", in_file="in.txt", additional_address=AD
         if found_additional_address:
             logger("KEYFOUND", "Private key for the additional address found! Stopping the program.")
             logger("KEYFOUND", f"{private_keys.get(additional_address)}")
+            try:
+                with open('KEYFOUND.txt', "w") as file:
+                    file.write(private_keys.get(additional_address) + "\n")
+                    
+                logger("KEYFOUND", f"Addresses saved successfully to KEYFOUND.txt")
+            except Exception as e:
+                logger("KEYFOUND Error", f"Error saving address: {e}")
+                    
             return True
 
         # Checking if the number of private keys matches the number of addresses
