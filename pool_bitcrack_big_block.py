@@ -77,6 +77,26 @@ def fetch_block_data():
 
 # --------------------------------------------------------------------------------------------------------------------------------------------
 
+def check_file_and_address(filename="found.txt"):
+    # Check if the file exists
+    if os.path.exists(filename):
+        # Open the file and read its content
+        with open(filename, "r") as file:
+            content = file.read().strip()
+            
+            # Check if the content matches the global variable ADDITIONAL_ADDRESS
+            if content == ADDITIONAL_ADDRESS:
+                logger("KEYFOUND", "Address found in file!")
+                return True
+            else:
+                logger("Error", "Address not found in file.")
+                return False
+    else:
+        #print("File 'found.txt' does not exist.")
+        return False
+
+# --------------------------------------------------------------------------------------------------------------------------------------------
+
 def save_addresses_to_file(addresses, additional_address, filename="in.txt"):
     """Saves a list of addresses and the additional address to a file.
     
@@ -181,19 +201,23 @@ def split_and_run(start_hex, end_hex, num_parts=10):
 
     # Load progress if available
     current_part, total_parts = load_progress(start_hex, end_hex)
-    #total = total_parts if total_parts else total
-    if current_part >= num_parts:
+    
+    # If the total_parts loaded from progress is zero, set total_parts to num_parts
+    total_parts = total_parts if total_parts else num_parts
+
+    # If we have already processed all parts, return
+    if current_part >= total_parts:
         logger("Info", "All parts already processed.")
         return False
     
     # Adjust num_parts if total is smaller than num_parts
-    if total < num_parts:
-        num_parts = total
+    if total < total_parts:
+        total_parts = total
 
-    part_size = total // num_parts
-    remainder = total % num_parts
+    part_size = total // total_parts
+    remainder = total % total_parts
 
-
+    # Set the start for the current part
     current_start = start + (current_part * part_size)
     if current_part < remainder:
         current_start += current_part
@@ -201,7 +225,7 @@ def split_and_run(start_hex, end_hex, num_parts=10):
         current_start += remainder
 
     # Process each part sequentially
-    for i in range(current_part, num_parts):
+    for i in range(current_part, total_parts):
         current_part_size = part_size
         if i < remainder:
             current_part_size += 1
@@ -213,29 +237,31 @@ def split_and_run(start_hex, end_hex, num_parts=10):
         part_start_hex = hex(current_start)[2:]
         part_end_hex = hex(current_end)[2:]
 
-        logger("Info", f"Processing part {i+1}/{num_parts}: {part_start_hex} to {part_end_hex}")
+        logger("Info", f"Processing part {i+1}/{total_parts}: {Fore.GREEN}{part_start_hex}{Style.RESET_ALL} to {Fore.GREEN}{part_end_hex}{Style.RESET_ALL}")
         run_program(part_start_hex, part_end_hex)
 
         # Save progress after each part
-        save_progress(i, num_parts, start_hex, end_hex)
+        save_progress(i, total_parts, start_hex, end_hex)
 
         # After each part, we check the output, but we don't stop the loop yet
         current_start = current_end + 1
         if current_start > end:
             break
 
-        # Wait xx seconds before starting the next part
-        time.sleep(10)
-        logger("Timer", "Waiting 10 seconds before starting the next part.")
+        # Wait 30 seconds before starting the next part
+        logger("Timer", "Waiting 30 seconds before starting the next part.")
+        time.sleep(30)
 
     # After all parts are processed, check the output file
     logger("Info", "All parts processed. Now checking the output file for the solution.")
     if process_out_file():
-        logger("Success", "Solution found in output file.")
+        false_positive = check_file_and_address()
+        
         # Delete progress file after successful completion
         if os.path.exists("progress.txt"):
             os.remove("progress.txt")
-        return True
+            
+        return false_positive
     else:
         logger("Warning", "Solution not found in output file.")
 
@@ -250,28 +276,28 @@ def run_program(start, end):
     then executes the cuBitCrack program with specific options to attempt cracking the private keys.
     """
     keyspace = f"{start}:{end}"
-    command = [
-        "sudo", "unshare", "--net",
-        "./cuBitCrack",
-        "-t", "256",					# Increased threads per block
-        "-b", "128",					# Adjusted blocks based on GPU compute units
-        "-p", "64", 					# Increased keys per thread
-        "-c",							# Search for compressed keys
-        "-i", "in.txt", 				# Path for input file
-        "-o", "out.txt",				# Path for output file
-        "--keyspace", keyspace, 		# Keyspace to be cracked
-    ]
     # command = [
     #     "sudo", "unshare", "--net",
     #     "./cuBitCrack",
     #     "-t", "256",					# Increased threads per block
-    #     "-b", "208",					# Adjusted blocks based on GPU compute units
-    #     "-p", "512", 					# Increased keys per thread
+    #     "-b", "128",					# Adjusted blocks based on GPU compute units
+    #     "-p", "64", 					# Increased keys per thread
     #     "-c",							# Search for compressed keys
     #     "-i", "in.txt", 				# Path for input file
     #     "-o", "out.txt",				# Path for output file
     #     "--keyspace", keyspace, 		# Keyspace to be cracked
     # ]
+    command = [
+        "sudo", "unshare", "--net",
+        "./cuBitCrack",
+        "-t", "256",					# Increased threads per block
+        "-b", "208",					# Adjusted blocks based on GPU compute units
+        "-p", "512", 					# Increased keys per thread
+        "-c",							# Search for compressed keys
+        "-i", "in.txt", 				# Path for input file
+        "-o", "out.txt",				# Path for output file
+        "--keyspace", keyspace, 		# Keyspace to be cracked
+    ]
     try:
         logger("Info", f"Running with keyspace {keyspace}")
         subprocess.run(command, check=True)
@@ -371,12 +397,13 @@ def process_out_file(out_file="out.txt", in_file="in.txt", additional_address=AD
             except Exception as e:
                 logger("KEYFOUND Error", f"Error saving address: {e}")
                     
-            return True
+            #return True
 
         # Checking if the number of private keys matches the number of addresses
         if len(private_keys) != len(addresses):
             logger("Error", f"Number of private keys ({len(private_keys)}) does not match the number of addresses ({len(addresses)}).")
             clear_file(out_file)
+            clear_file('progress.txt')
             return False
         
         # Sorting the private keys in the same order as the addresses in in.txt
@@ -398,9 +425,9 @@ def process_out_file(out_file="out.txt", in_file="in.txt", additional_address=AD
             batch = ordered_private_keys[i:i + 10]
             if len(batch) == 10:
                 post_private_keys(batch)
-                #print(f"[SUCCESS]: {len(batch)}")
+                #print(f"[SUCCESS]: {len(batch)}")                
             else:                
-                logger("Warning", f"Batch with less than 10 keys ignored: {len(batch)}")
+                logger("Warning", f"Batch with less than {Fore.RED}[10 keys]{Style.RESET_ALL} ignored: {len(batch)}")
 
     except Exception as e:
         logger("Error", f"processing files: {e}")
@@ -408,7 +435,7 @@ def process_out_file(out_file="out.txt", in_file="in.txt", additional_address=AD
     # Clear the out.txt file after processing
     #return True
     clear_file(out_file)
-    return False
+    return found_additional_address
 
 # --------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -430,7 +457,7 @@ if __name__ == "__main__":
                 
                 if start and end:
                     logger("Info", f"Starting to split and process the range from {start} to {end}.")
-                    solution_found = split_and_run(start, end, num_parts=20)  # Run the keyspace splitting logic
+                    solution_found = split_and_run(start, end, num_parts=4)  # Run the keyspace splitting logic
 
                     if solution_found:
                         logger("Success", "Solution found during processing.")
